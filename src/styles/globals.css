@@ -19,3 +19,7 @@ input::placeholder {
   scrollbar-color: rgba(129, 129, 129, 0.582) transparent;
   scrollbar-width: thin;
 }
+
+table tr:nth-child(odd) {
+  background-color: #2e2a2d;
+}
