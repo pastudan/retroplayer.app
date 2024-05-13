@@ -41,8 +41,6 @@ export default function Login() {
   const router = useRouter()
   const { code } = router.query
 
-  console.log({ code })
-
   const redirectUrl =
     'https://accounts.spotify.com/authorize?' +
     new URLSearchParams({
@@ -52,11 +50,9 @@ export default function Login() {
       redirect_uri: origin + '/api/oauth-callback',
     }).toString()
 
-  console.log({ redirectUrl })
-
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <a href={redirectUrl} className="bg-green-500 text-white p-4 rounded-lg">
+      <a href={redirectUrl} className="bg-green-500 text-white p-4 rounded-lg block">
         Login with Spotify
       </a>
     </div>
