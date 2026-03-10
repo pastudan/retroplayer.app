@@ -1,6 +1,8 @@
 export const NEXT_PUBLIC_SPOTIFY_CLIENT_ID = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID
 export const NEXT_PUBLIC_ORIGIN = process.env.NEXT_PUBLIC_ORIGIN
 export const ALBUM_ART_WIDTH = 150
+export const DEFAULT_ALBUM_URL = '/album-placeholder.png'
+export const DEFAULT_ARTIST_URL = '/artist-placeholder.png'
 
 const SPOTIFY_LOGIN_SCOPES = [
   //
@@ -26,7 +28,17 @@ export async function fetchSpotify(url, method, json) {
   return data
 }
 
-export function getTokens() {
+export async function refreshTokens() {
+  const refreshRes = await fetch('/api/oauth-refresh')
+  if (!refreshRes.ok) {
+    console.error('Failed to refresh token')
+    window.location.reload()
+    return
+  }
+  getTokens()
+}
+
+export async function getTokens() {
   if (typeof window === 'undefined') return
   const cookies = document.cookie.split('; ')
   let tokens = cookies.find((cookie) => cookie.includes('tokens'))?.split('=')[1]
@@ -34,17 +46,12 @@ export function getTokens() {
   tokens = JSON.parse(tokens)
   const timeout = new Date(tokens.expires) - new Date()
   window.refreshToken = tokens.refreshToken
-  if (timeout > 0) {
+  const MIN_TIMEOUT = 5000
+  if (timeout > MIN_TIMEOUT) {
     window.accessToken = tokens.accessToken
-    setTimeout(async () => {
-      const refreshRes = await fetch('/api/oauth-refresh')
-      if (!refreshRes.ok) {
-        console.error('Failed to refresh token')
-        window.location.reload()
-        return
-      }
-      getTokens()
-    }, timeout - 5000) // refresh 5 seconds before it expires
+    setTimeout(() => refreshTokens, timeout - MIN_TIMEOUT) // refresh 5 seconds before it expires
+  } else {
+    await refreshTokens()
   }
   return !!window.refreshToken
 }

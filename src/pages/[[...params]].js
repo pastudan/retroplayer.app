@@ -1,9 +1,10 @@
 import { Inter } from 'next/font/google'
 import { useEffect, useState } from 'react'
-import { fetchSpotify, getTokens, SPOTIFY_LOGIN_URL } from '@/functions.js'
-import { useRouter } from 'next/router'
+import { fetchSpotify, getTokens, SPOTIFY_LOGIN_URL, DEFAULT_ARTIST_URL } from '@/functions.js'
+import { Router, Switch, Route, Redirect } from 'wouter'
+import { memoryLocation } from 'wouter/memory-location'
+
 import { Volume2, MonitorSpeaker, Heart, ListEnd, Sparkles, Inbox, Users, Music, AppWindowMac, MicVocal, BoomBox, Library, WifiOff, Download } from 'lucide-react'
-import Link from 'next/link'
 
 import Playlist from '@/components/Playlist'
 import Artist from '@/components/Artist'
@@ -13,15 +14,14 @@ const NOW_PLAYING_HEIGHT = 50
 const inter = Inter({ subsets: ['latin'] })
 
 export default function Home() {
+  const { hook, history, navigate } = memoryLocation({ path: '/', record: true })
+
   const [player, setPlayer] = useState(undefined)
   const [playlists, setPlaylists] = useState([])
 
   const [context, setContext] = useState({ type: 'whats-new' })
   const [devices, setDevices] = useState([])
-  const [currentlyPlaying, setCurrentlyPlaying] = useState({})
   const [profile, setProfile] = useState(null)
-
-  const router = useRouter()
 
   async function initPlayer() {
     const script = document.createElement('script')
@@ -36,13 +36,10 @@ export default function Home() {
       })
       spotifyPlayer.addListener('ready', async ({ device_id }) => {
         const currentlyPlaying = await fetchSpotify(`/me/player/currently-playing`)
-        setCurrentlyPlaying(currentlyPlaying)
+        console.log('Currently Playing', currentlyPlaying)
         // transfer playback to this device on boot if nothing is playing
-        if (!currentlyPlaying?.is_playing) {
-          fetchSpotify(`/me/player`, 'PUT', { device_ids: [device_id] })
-        }
-        const devices = await fetchSpotify(`/me/player/devices`)
-        setDevices(devices.devices)
+        if (!currentlyPlaying?.is_playing) fetchSpotify(`/me/player`, 'PUT', { device_ids: [device_id] })
+        fetchSpotify(`/me/player/devices`).then((devices) => setDevices(devices.devices))
       })
       spotifyPlayer.addListener('not_ready', ({ device_id }) => console.log('Device ID has gone offline', device_id))
       spotifyPlayer.addListener('initialization_error', ({ message }) => console.error(message))
@@ -66,6 +63,7 @@ export default function Home() {
   console.log(`Player state — Context: ${player?.context?.uri}, Track: ${player?.track_window?.current_track?.uri}`)
 
   const currentTrack = player?.track_window?.current_track?.uri
+  console.log('Current Track', player?.track_window?.current_track)
 
   return (
     <div className={`flex min-h-screen flex-col items-center justify-between h-full ${inter.className}`}>
@@ -84,7 +82,7 @@ export default function Home() {
         <div className="w-1/3 flex justify-end">
           {profile ? (
             <div className="p-px bg-white shadow" title={profile?.display_name}>
-              <img src={profile?.images?.[0]?.url} width={32} height={32} alt={profile?.display_name} />
+              <img src={profile?.images?.[0]?.url || DEFAULT_ARTIST_URL} width={32} height={32} alt={profile?.display_name} />
             </div>
           ) : (
             <a href={SPOTIFY_LOGIN_URL} className="bg-green-600 text-white px-2 py-1 rounded-lg text-sm">
@@ -203,28 +201,38 @@ export default function Home() {
               </ul>
             </div>
           </div>
-          {/* <div
+          <div
             className="flex justify-between items-center pr-3 fixed bottom-0 h-1/5 w-1/5 overflow-hidden bg-playbar border-t border-t-main"
             style={{ height: NOW_PLAYING_HEIGHT }}
           >
             <div className="flex">
               <div className="mr-2">
-                {currentlyPlaying?.item?.album?.images?.[0] && (
+                {/* {currentTrack?.item?.album?.images?.[0] && (
                   <img src={currentlyPlaying?.item?.album?.images?.[0].url} width={50} height={50} alt={currentlyPlaying?.item?.album?.name} />
-                )}
+                )} */}
               </div>
               <div className="flex flex-col justify-center">
-                <div className="whitespace-nowrap text-sm font-semibold text-white">{currentlyPlaying?.item?.name}</div>
-                <div className="whitespace-nowrap text-xs text-gray-200">{currentlyPlaying?.item && linkifyArtists(currentlyPlaying?.item?.artists)}</div>
+                {/* <div className="whitespace-nowrap text-sm font-semibold text-white">{currentlyPlaying?.item?.name}</div>
+                <div className="whitespace-nowrap text-xs text-gray-200">{currentlyPlaying?.item && linkifyArtists(currentlyPlaying?.item?.artists)}</div> */}
               </div>
             </div>
-            <div className="text-3xl">♥</div>
-          </div> */}
+            <div className="text-3xl">
+              <Heart className="w-12" />
+            </div>
+          </div>
         </div>
 
         <div className="w-4/5 height-main bg-main text-xs overflow-y-scroll">
-          {context?.type === 'playlist' && <Playlist {...{ context, setContext, currentTrack }} />}
-          {context?.type === 'artist' && <Artist {...{ context, setContext, currentTrack }} />}
+          <Router hook={hook}>
+            <Switch>
+              <Route path="/artist/:id"> {(params) => <Artist {...{ context, setContext, currentTrack }} />}</Route>
+              <Route path="/playlist/:id"> {(params) => <Playlist {...{ context, setContext, currentTrack }} />}</Route>
+              <Route path="/whats-new">What&apos;s New</Route>
+              <Route>
+                <Redirect to="/whats-new" />
+              </Route>
+            </Switch>
+          </Router>
         </div>
       </main>
     </div>

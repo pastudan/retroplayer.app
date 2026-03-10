@@ -1,4 +1,4 @@
-import { fetchSpotify, msToTime, ALBUM_ART_WIDTH } from '@/functions.js'
+import { fetchSpotify, msToTime, ALBUM_ART_WIDTH, NEXT_PUBLIC_ORIGIN } from '@/functions.js'
 import { useState, useEffect } from 'react'
 import { Clipboard, Heart, Volume2 } from 'lucide-react'
 import ArtistLinks from '@/components/ArtistLinks.js'
@@ -6,8 +6,9 @@ import PopularityChart from '@/components/PopularityChart.js'
 
 const DEFAULT_ALBUM_URL = '/album-placeholder.png'
 
-export default function Album({ album, context, setContext, showYear = false, currentTrack, showArtwork = true, showTitle = false }) {
+export default function Album({ album, context, setContext, currentTrack }) {
   const [tracks, setTracks] = useState([])
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     fetchSpotify(`/albums/${album.id}/tracks`).then((data) => {
@@ -18,18 +19,16 @@ export default function Album({ album, context, setContext, showYear = false, cu
 
   return (
     <div className="mt-4 mx-4 flex">
-      {showArtwork && (
-        <div
-          style={{
-            width: ALBUM_ART_WIDTH,
-            height: ALBUM_ART_WIDTH,
-            backgroundImage: `url(${album.images?.[0]?.url || DEFAULT_ALBUM_URL})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            flexShrink: 0,
-          }}
-        />
-      )}
+      <div
+        style={{
+          width: ALBUM_ART_WIDTH,
+          height: ALBUM_ART_WIDTH,
+          backgroundImage: `url(${album.images?.[0]?.url || DEFAULT_ALBUM_URL})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          flexShrink: 0,
+        }}
+      />
       <div className="w-full ml-4">
         <h2 className="group flex items-center mb-2">
           <span className="text-base">{album.name}</span>
@@ -37,11 +36,14 @@ export default function Album({ album, context, setContext, showYear = false, cu
           <a
             className="ml-2 hidden group-hover:block hover:underline cursor-pointer"
             onClick={() => {
-              navigator.clipboard.writeText(album.external_urls.spotify)
+              const link = NEXT_PUBLIC_ORIGIN + '/album/' + album.id
+              navigator.clipboard.writeText(link)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
             }}
           >
             <Clipboard />
-            Share
+            {copied ? 'Copied!' : 'Link'}
           </a>
         </h2>
         <table className="w-full">

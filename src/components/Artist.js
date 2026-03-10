@@ -1,12 +1,48 @@
 import { useState, useEffect } from 'react'
-import { fetchSpotify, msToTime, ALBUM_ART_WIDTH } from '@/functions.js'
+import { fetchSpotify, msToTime, ALBUM_ART_WIDTH, DEFAULT_ARTIST_URL, NEXT_PUBLIC_ORIGIN } from '@/functions.js'
 import { Heart, Volume2, Clipboard, Radio } from 'lucide-react'
 import PopularityChart from '@/components/PopularityChart.js'
 import ArtistLinks from '@/components/ArtistLinks.js'
 import Album from '@/components/Album.js'
 
-const DEFAULT_ALBUM_URL = '/album-placeholder.png'
-const DEFAULT_ARTIST_URL = '/artist-placeholder.png'
+async function fetchDiscography({ id, setSingles }) {
+  await fetch(`/api/artist/${id}/discography`)
+    .then((response) => response.body)
+    .then((rb) => {
+      const reader = rb.getReader()
+      return new ReadableStream({
+        start(controller) {
+          // The following function handles each data chunk
+          function push() {
+            // "done" is a Boolean and value a "Uint8Array"
+            reader.read().then(({ done, value }) => {
+              // If there is no more data to read
+              if (done) {
+                console.log('done', done)
+                controller.close()
+                return
+              }
+              // Get the data and send it to the browser via the controller
+              controller.enqueue(value)
+              // Check chunks by logging to the console
+              console.log(done, value)
+              push()
+            })
+          }
+
+          push()
+        },
+      })
+    })
+    .then((stream) =>
+      // Respond with our stream
+      new Response(stream, { headers: { 'Content-Type': 'text/html' } }).text()
+    )
+    .then((result) => {
+      // Do things with result
+      console.log(result)
+    })
+}
 
 export default function Artist({ context, setContext, currentTrack }) {
   const [artist, setArtist] = useState({})
@@ -16,6 +52,21 @@ export default function Artist({ context, setContext, currentTrack }) {
   const [relatedArtists, setRelatedArtists] = useState([])
   const [copied, setCopied] = useState(false)
   const [showArtwork, setShowArtwork] = useState(false)
+
+  useEffect(() => {
+    const eventSource = new EventSource('http://localhost:3100/discography', { withCredentials: true })
+    eventSource.addEventListener('error', () => {
+      throw new Error('Failed to fetch artist discography')
+    })
+    eventSource.addEventListener('done', () => eventSource.close())
+    eventSource.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data)
+      if (data.albums) setAlbums((albums) => [...albums, ...data.albums])
+      if (data.singles) setSingles((singles) => [...singles, ...data.singles])
+    })
+    // As the component unmounts, close listener to SSE API
+    return () => eventSource.close()
+  }, [])
 
   useEffect(() => {
     // setArtist({})
@@ -33,14 +84,16 @@ export default function Artist({ context, setContext, currentTrack }) {
       const fullAlbums = data.items.filter((album) => album.album_type === 'album')
       console.log('Single Albums', singleAlbums)
       console.log('Full Albums', fullAlbums)
-
-      singleAlbums.forEach(async (album) => {
-        const data = await fetchSpotify(`/albums/${album.id}/tracks`)
-        setSingles((singles) => [...singles, ...data.items])
-      })
+      // singleAlbums.forEach(async (album) => {
+      //   const data = await fetchSpotify(`/albums/${album.id}/tracks`)
+      //   const newSingles = data.items.map((track) => ({ ...track, album }))
+      //   setSingles((singles) => [...singles, ...newSingles])
+      // })
       setAlbums(data.items)
     })
     fetchSpotify(`/artists/${context.id}/related-artists`).then((data) => setRelatedArtists(data.artists))
+
+    fetchDiscography({ id: context.id, setSingles })
   }, [context])
 
   return (
@@ -75,11 +128,12 @@ export default function Artist({ context, setContext, currentTrack }) {
                 onClick={() => {
                   setCopied(true)
                   setTimeout(() => setCopied(false), 2000)
-                  navigator.clipboard.writeText(artist.href)
+                  const link = NEXT_PUBLIC_ORIGIN + '/artist/' + artist.id
+                  navigator.clipboard.writeText(link)
                 }}
               >
                 <Clipboard />
-                {copied ? 'Copied!' : 'Share'}
+                {copied ? 'Copied!' : 'Link'}
               </a>
             </span>
           </div>
@@ -160,7 +214,6 @@ export default function Artist({ context, setContext, currentTrack }) {
             <th className="py-1"></th>
             <th className="py-1">Title</th>
             <th className="py-1">Artists</th>
-            <th className="py-1">Album</th>
             <th className="py-1">Year</th>
             <th className="py-1">Popularity</th>
             <th className="py-1">Time</th>
@@ -188,8 +241,7 @@ export default function Artist({ context, setContext, currentTrack }) {
                 </td>
                 <td>{track.name}</td>
                 <td>{ArtistLinks({ artists: track.artists, setContext })}</td>
-                <td>{track?.album?.name}</td>
-                <td>{track?.album?.year}</td>
+                <td>{new Date(track?.album?.release_date).getFullYear()}</td>
                 <td>{PopularityChart({ popularity: track.popularity })}</td>
                 <td>{msToTime(track.duration_ms)}</td>
                 {/* <pre>{JSON.stringify(track, null, 2)}</pre> */}
