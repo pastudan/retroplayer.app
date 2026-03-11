@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { fetchSpotify, getTokens, startPKCELogin, handlePKCECallback, DEFAULT_ARTIST_URL, isTauri } from '@/functions.js'
 import { Router, Switch, Route, Redirect, useLocation } from 'wouter'
 
@@ -35,6 +35,22 @@ function MainApp() {
   const [context, setContext] = useState({ type: 'whats-new' })
   const [devices, setDevices] = useState([])
   const [profile, setProfile] = useState(null)
+  const navRef = useRef(null)
+
+  // Manual drag: more reliable than data-tauri-drag-region on transparent windows
+  useEffect(() => {
+    if (!isTauri()) return
+    const nav = navRef.current
+    if (!nav) return
+    const NO_DRAG = 'input, button, a, [role="button"]'
+    const onMouseDown = async (e) => {
+      if (e.target.closest(NO_DRAG)) return
+      const { getCurrentWindow } = await import('@tauri-apps/api/window')
+      getCurrentWindow().startDragging()
+    }
+    nav.addEventListener('mousedown', onMouseDown)
+    return () => nav.removeEventListener('mousedown', onMouseDown)
+  }, [])
 
   async function initPlayer() {
     const script = document.createElement('script')
@@ -87,8 +103,9 @@ function MainApp() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-between h-full">
       <nav
+        ref={navRef}
         className="flex justify-between items-center h-12 w-full border-b border-b-main-border bg-header text-black p-4"
-        {...(isTauri() && { 'data-tauri-drag-region': true })}
+        style={isTauri() ? { cursor: 'default', userSelect: 'none', WebkitUserSelect: 'none' } : undefined}
       >
         <div className="flex items-center w-1/3">
           {isTauri() && <TrafficLights />}
