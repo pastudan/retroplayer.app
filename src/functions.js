@@ -121,10 +121,11 @@ export function getTokens() {
   const MIN_TIMEOUT = 5000
   if (timeout > MIN_TIMEOUT) {
     setTimeout(() => refreshTokens(), timeout - MIN_TIMEOUT)
+    return true
   } else {
-    refreshTokens()
+    // Token already expired — refresh before returning
+    return refreshTokens().then(() => true).catch(() => false)
   }
-  return !!window.refreshToken
 }
 
 // ---- Spotify API ----
@@ -135,11 +136,10 @@ export async function fetchSpotify(url, method, json) {
     method: method || 'GET',
     body: json ? JSON.stringify(json) : undefined,
   })
-  if (res.status > 200 && res.status < 300) return
+  // 204 No Content (e.g. play/pause commands) — nothing to parse
+  if (res.status === 204) return
   const data = await res.json()
-  if (!res.ok) {
-    console.error(data)
-  }
+  if (!res.ok) console.error(data)
   return data
 }
 

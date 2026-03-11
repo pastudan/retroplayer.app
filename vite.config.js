@@ -14,7 +14,7 @@ export default defineConfig({
   // Vite options tailored for Tauri dev/build
   clearScreen: false,
   server: {
-    host: host || 'localhost',
+    host: host || '127.0.0.1',
     port: 5173,
     strictPort: true,
     hmr: host ? { protocol: 'ws', host, port: 5183 } : undefined,
@@ -32,4 +32,3 @@ export default defineConfig({
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
   },
 })
-

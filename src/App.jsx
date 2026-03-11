@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { fetchSpotify, getTokens, startPKCELogin, handlePKCECallback, DEFAULT_ARTIST_URL, isTauri } from '@/functions.js'
-import { Router, Switch, Route, Redirect, useLocation } from 'wouter'
+import { Router, Switch, Route, useLocation } from 'wouter'
 
 import { Volume2, MonitorSpeaker, Heart, ListEnd, Sparkles, Inbox, Users, Music, AppWindowMac, MicVocal, BoomBox, Library, WifiOff, Download } from 'lucide-react'
 
@@ -78,10 +78,11 @@ function MainApp() {
     }
   }
 
-  function boot() {
-    if (getTokens()) {
+  async function boot() {
+    const authed = await getTokens()
+    if (authed) {
       initPlayer()
-      fetchSpotify('/me/playlists').then((data) => setPlaylists(data.items))
+      fetchSpotify('/me/playlists').then((data) => setPlaylists(data?.items ?? []))
       fetchSpotify('/me').then(setProfile)
     }
   }
@@ -92,13 +93,19 @@ function MainApp() {
 
   const currentTrack = player?.track_window?.current_track?.uri
 
-  // When context changes, update the in-memory route
+  // Sync URL to context for shareability, but drive the view from context state directly
   const [, navigate] = useLocation()
   useEffect(() => {
-    if (context.type === 'artist') navigate(`/artist/${context.id}`)
-    else if (context.type === 'playlist') navigate(`/playlist/${context.id}`)
-    else navigate('/whats-new')
+    if (context.type === 'artist') navigate(`/artist/${context.id}`, { replace: true })
+    else if (context.type === 'playlist') navigate(`/playlist/${context.id}`, { replace: true })
+    else navigate('/whats-new', { replace: true })
   }, [context])
+
+  function renderMain() {
+    if (context.type === 'playlist') return <Playlist {...{ context, setContext, currentTrack }} />
+    if (context.type === 'artist') return <Artist {...{ context, setContext, currentTrack }} />
+    return <div className="p-4 text-stone-400">What&apos;s New</div>
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-between h-full">
@@ -249,14 +256,7 @@ function MainApp() {
         </div>
 
         <div className="w-4/5 height-main bg-main text-xs overflow-y-scroll">
-          <Switch>
-            <Route path="/artist/:id">{() => <Artist {...{ context, setContext, currentTrack }} />}</Route>
-            <Route path="/playlist/:id">{() => <Playlist {...{ context, setContext, currentTrack }} />}</Route>
-            <Route path="/whats-new">What&apos;s New</Route>
-            <Route>
-              <Redirect to="/whats-new" />
-            </Route>
-          </Switch>
+          {renderMain()}
         </div>
       </main>
     </div>
