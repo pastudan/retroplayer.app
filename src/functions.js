@@ -4,6 +4,8 @@ export const ALBUM_ART_WIDTH = 150
 export const DEFAULT_ALBUM_URL = '/album-placeholder.png'
 export const DEFAULT_ARTIST_URL = '/artist-placeholder.png'
 
+export const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
 const SPOTIFY_LOGIN_SCOPES = [
   'streaming',
   'user-read-email',
