@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchSpotify, getTokens, startPKCELogin, handlePKCECallback, DEFAULT_ARTIST_URL } from '@/functions.js'
+import { fetchSpotify, getTokens, startPKCELogin, handlePKCECallback, DEFAULT_ARTIST_URL, isTauri } from '@/functions.js'
 import { Router, Switch, Route, Redirect, useLocation } from 'wouter'
 
 import { Volume2, MonitorSpeaker, Heart, ListEnd, Sparkles, Inbox, Users, Music, AppWindowMac, MicVocal, BoomBox, Library, WifiOff, Download } from 'lucide-react'
@@ -85,7 +85,10 @@ function MainApp() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-between h-full">
-      <nav className="flex justify-between items-center h-12 w-full border-b border-b-main-border bg-header text-black p-4">
+      <nav
+        className="flex justify-between items-center h-12 w-full border-b border-b-main-border bg-header text-black p-4"
+        {...(isTauri() && { 'data-tauri-drag-region': true })}
+      >
         <div className="flex items-center w-1/3">
           <div className="pr-4 mr-2">◀</div>
           <div className="pr-4 mr-2">▶</div>

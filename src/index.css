@@ -7,6 +7,28 @@ body {
   color: #dfdccd;
 }
 
+/* Tauri: disable viewport scroll and text selection on the drag region */
+html.tauri,
+html.tauri body {
+  overflow: hidden;
+}
+
+[data-tauri-drag-region] {
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Re-enable pointer events on interactive children of the drag region */
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input {
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 input::placeholder {
   color: #7d7587;
 }
