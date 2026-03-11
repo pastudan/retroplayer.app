@@ -11,6 +11,13 @@ body {
 html.tauri,
 html.tauri body {
   overflow: hidden;
+  background: transparent;
+}
+
+/* Rounded window corners matching macOS Tahoe toolbar-window radius */
+html.tauri #root {
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 [data-tauri-drag-region] {
