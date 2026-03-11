@@ -17,6 +17,7 @@ html.tauri body {
   cursor: default;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-app-region: drag;
 }
 
 /* Re-enable pointer events on interactive children of the drag region */

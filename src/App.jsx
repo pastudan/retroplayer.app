@@ -6,6 +6,7 @@ import { Volume2, MonitorSpeaker, Heart, ListEnd, Sparkles, Inbox, Users, Music,
 
 import Playlist from '@/components/Playlist.jsx'
 import Artist from '@/components/Artist.jsx'
+import TrafficLights from '@/components/TrafficLights.jsx'
 
 const NOW_PLAYING_HEIGHT = 50
 
@@ -90,6 +91,7 @@ function MainApp() {
         {...(isTauri() && { 'data-tauri-drag-region': true })}
       >
         <div className="flex items-center w-1/3">
+          {isTauri() && <TrafficLights />}
           <div className="pr-4 mr-2">◀</div>
           <div className="pr-4 mr-2">▶</div>
           <div className="text-xs border border-main-border rounded-full">
