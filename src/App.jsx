@@ -1,24 +1,36 @@
-import { Inter } from 'next/font/google'
 import { useEffect, useState } from 'react'
-import { fetchSpotify, getTokens, SPOTIFY_LOGIN_URL, DEFAULT_ARTIST_URL } from '@/functions.js'
-import { Router, Switch, Route, Redirect } from 'wouter'
-import { memoryLocation } from 'wouter/memory-location'
+import { fetchSpotify, getTokens, startPKCELogin, handlePKCECallback, DEFAULT_ARTIST_URL } from '@/functions.js'
+import { Router, Switch, Route, Redirect, useLocation } from 'wouter'
 
 import { Volume2, MonitorSpeaker, Heart, ListEnd, Sparkles, Inbox, Users, Music, AppWindowMac, MicVocal, BoomBox, Library, WifiOff, Download } from 'lucide-react'
 
-import Playlist from '@/components/Playlist'
-import Artist from '@/components/Artist'
+import Playlist from '@/components/Playlist.jsx'
+import Artist from '@/components/Artist.jsx'
 
 const NOW_PLAYING_HEIGHT = 50
 
-const inter = Inter({ subsets: ['latin'] })
+function OAuthCallback({ onSuccess }) {
+  const [, navigate] = useLocation()
 
-export default function Home() {
-  const { hook, history, navigate } = memoryLocation({ path: '/', record: true })
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code) {
+      handlePKCECallback(code)
+        .then(() => {
+          navigate('/', { replace: true })
+          onSuccess()
+        })
+        .catch(console.error)
+    }
+  }, [])
 
+  return <div className="flex items-center justify-center h-screen text-sm">Connecting to Spotify…</div>
+}
+
+function MainApp() {
   const [player, setPlayer] = useState(undefined)
   const [playlists, setPlaylists] = useState([])
-
   const [context, setContext] = useState({ type: 'whats-new' })
   const [devices, setDevices] = useState([])
   const [profile, setProfile] = useState(null)
@@ -36,8 +48,6 @@ export default function Home() {
       })
       spotifyPlayer.addListener('ready', async ({ device_id }) => {
         const currentlyPlaying = await fetchSpotify(`/me/player/currently-playing`)
-        console.log('Currently Playing', currentlyPlaying)
-        // transfer playback to this device on boot if nothing is playing
         if (!currentlyPlaying?.is_playing) fetchSpotify(`/me/player`, 'PUT', { device_ids: [device_id] })
         fetchSpotify(`/me/player/devices`).then((devices) => setDevices(devices.devices))
       })
@@ -49,33 +59,38 @@ export default function Home() {
       spotifyPlayer.addListener('player_state_changed', setPlayer)
       spotifyPlayer.connect()
     }
-    return true
   }
 
-  useEffect(() => {
+  function boot() {
     if (getTokens()) {
       initPlayer()
       fetchSpotify('/me/playlists').then((data) => setPlaylists(data.items))
       fetchSpotify('/me').then(setProfile)
     }
+  }
+
+  useEffect(() => {
+    boot()
   }, [])
 
-  console.log(`Player state — Context: ${player?.context?.uri}, Track: ${player?.track_window?.current_track?.uri}`)
-
   const currentTrack = player?.track_window?.current_track?.uri
-  console.log('Current Track', player?.track_window?.current_track)
+
+  // When context changes, update the in-memory route
+  const [, navigate] = useLocation()
+  useEffect(() => {
+    if (context.type === 'artist') navigate(`/artist/${context.id}`)
+    else if (context.type === 'playlist') navigate(`/playlist/${context.id}`)
+    else navigate('/whats-new')
+  }, [context])
 
   return (
-    <div className={`flex min-h-screen flex-col items-center justify-between h-full ${inter.className}`}>
+    <div className="flex min-h-screen flex-col items-center justify-between h-full">
       <nav className="flex justify-between items-center h-12 w-full border-b border-b-main-border bg-header text-black p-4">
         <div className="flex items-center w-1/3">
           <div className="pr-4 mr-2">◀</div>
           <div className="pr-4 mr-2">▶</div>
-          <div
-            className="text-xs border border-main-border rounded-full 
-          "
-          >
-            <input type="text" placeholder="Search" className="p-1 pl-3 rounded-full bg-text-input shadow-inner focus:outline-none focus:ring focus:border-blue-500 " />
+          <div className="text-xs border border-main-border rounded-full">
+            <input type="text" placeholder="Search" className="p-1 pl-3 rounded-full bg-text-input shadow-inner focus:outline-none focus:ring focus:border-blue-500" />
           </div>
         </div>
         <div className="font-semibold text-sm w-1/3 flex justify-center">Spotify Premium</div>
@@ -85,25 +100,23 @@ export default function Home() {
               <img src={profile?.images?.[0]?.url || DEFAULT_ARTIST_URL} width={32} height={32} alt={profile?.display_name} />
             </div>
           ) : (
-            <a href={SPOTIFY_LOGIN_URL} className="bg-green-600 text-white px-2 py-1 rounded-lg text-sm">
+            <button onClick={startPKCELogin} className="bg-green-600 text-white px-2 py-1 rounded-lg text-sm cursor-pointer">
               Login with Spotify
-            </a>
+            </button>
           )}
         </div>
       </nav>
 
-      <main className="flex items-center justify-center height-main w-full bg-body ">
+      <main className="flex items-center justify-center height-main w-full bg-body">
         <div className="w-1/5 height-main">
           <div
             className="flex flex-col bg-sidebar text-sm overflow-y-scroll"
-            style={{
-              height: `calc(100vh - ${NOW_PLAYING_HEIGHT}px)`,
-            }}
+            style={{ height: `calc(100vh - ${NOW_PLAYING_HEIGHT}px)` }}
           >
             <div className="mt-3 mb-3 mx-3">
               <h2 className="mb-1 text-sidebar-header uppercase">Main</h2>
               <ul>
-                <li className={`px-3 ${context?.type === 'whats-new' && 'asd'}`}>
+                <li className={`px-3 ${context?.type === 'whats-new' ? 'bg-sidebar-selected' : ''}`}>
                   <Sparkles />
                   What&apos;s New
                 </li>
@@ -177,9 +190,7 @@ export default function Home() {
                       onClick={() => setContext({ type: 'playlist', ...playlist })}
                       onDoubleClick={() => {
                         fetchSpotify(`/me/player/play`, 'PUT', { context_uri: playlist.uri })
-                        console.log(`Playing [playlist] "${playlist.name}" — ${playlist.uri}`)
                       }}
-                      // TODO if we receive 404 here, then transfer playback to this device
                     >
                       <span>
                         <Music /> {playlist.name}
@@ -190,7 +201,7 @@ export default function Home() {
                 })}
               </ul>
             </div>
-            <div>
+            <div className="mt-3 mb-3 mx-3">
               <h2 className="mb-1 text-sidebar-header uppercase">Devices</h2>
               <ul>
                 {devices.map((device) => (
@@ -206,15 +217,8 @@ export default function Home() {
             style={{ height: NOW_PLAYING_HEIGHT }}
           >
             <div className="flex">
-              <div className="mr-2">
-                {/* {currentTrack?.item?.album?.images?.[0] && (
-                  <img src={currentlyPlaying?.item?.album?.images?.[0].url} width={50} height={50} alt={currentlyPlaying?.item?.album?.name} />
-                )} */}
-              </div>
-              <div className="flex flex-col justify-center">
-                {/* <div className="whitespace-nowrap text-sm font-semibold text-white">{currentlyPlaying?.item?.name}</div>
-                <div className="whitespace-nowrap text-xs text-gray-200">{currentlyPlaying?.item && linkifyArtists(currentlyPlaying?.item?.artists)}</div> */}
-              </div>
+              <div className="mr-2"></div>
+              <div className="flex flex-col justify-center"></div>
             </div>
             <div className="text-3xl">
               <Heart className="w-12" />
@@ -223,18 +227,33 @@ export default function Home() {
         </div>
 
         <div className="w-4/5 height-main bg-main text-xs overflow-y-scroll">
-          <Router hook={hook}>
-            <Switch>
-              <Route path="/artist/:id"> {(params) => <Artist {...{ context, setContext, currentTrack }} />}</Route>
-              <Route path="/playlist/:id"> {(params) => <Playlist {...{ context, setContext, currentTrack }} />}</Route>
-              <Route path="/whats-new">What&apos;s New</Route>
-              <Route>
-                <Redirect to="/whats-new" />
-              </Route>
-            </Switch>
-          </Router>
+          <Switch>
+            <Route path="/artist/:id">{() => <Artist {...{ context, setContext, currentTrack }} />}</Route>
+            <Route path="/playlist/:id">{() => <Playlist {...{ context, setContext, currentTrack }} />}</Route>
+            <Route path="/whats-new">What&apos;s New</Route>
+            <Route>
+              <Redirect to="/whats-new" />
+            </Route>
+          </Switch>
         </div>
       </main>
     </div>
+  )
+}
+
+export default function App() {
+  const [booted, setBooted] = useState(false)
+
+  return (
+    <Router>
+      <Switch>
+        <Route path="/callback">
+          <OAuthCallback onSuccess={() => setBooted((b) => !b)} />
+        </Route>
+        <Route>
+          <MainApp key={booted} />
+        </Route>
+      </Switch>
+    </Router>
   )
 }

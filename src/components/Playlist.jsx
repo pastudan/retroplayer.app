@@ -1,8 +1,8 @@
 import { fetchSpotify, msToTime } from '@/functions.js'
 import { useState, useEffect } from 'react'
 import { Heart, Volume2 } from 'lucide-react'
-import ArtistLinks from '@/components/ArtistLinks.js'
-import PopularityChart from '@/components/PopularityChart.js'
+import ArtistLinks from '@/components/ArtistLinks.jsx'
+import PopularityChart from '@/components/PopularityChart.jsx'
 
 export default function PlaylistTracks({ context, setContext, currentTrack }) {
   const [results, setResults] = useState([])

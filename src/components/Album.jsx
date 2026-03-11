@@ -1,8 +1,8 @@
-import { fetchSpotify, msToTime, ALBUM_ART_WIDTH, NEXT_PUBLIC_ORIGIN } from '@/functions.js'
+import { fetchSpotify, msToTime, ALBUM_ART_WIDTH } from '@/functions.js'
 import { useState, useEffect } from 'react'
 import { Clipboard, Heart, Volume2 } from 'lucide-react'
-import ArtistLinks from '@/components/ArtistLinks.js'
-import PopularityChart from '@/components/PopularityChart.js'
+import ArtistLinks from '@/components/ArtistLinks.jsx'
+import PopularityChart from '@/components/PopularityChart.jsx'
 
 const DEFAULT_ALBUM_URL = '/album-placeholder.png'
 
@@ -36,7 +36,7 @@ export default function Album({ album, context, setContext, currentTrack }) {
           <a
             className="ml-2 hidden group-hover:block hover:underline cursor-pointer"
             onClick={() => {
-              const link = NEXT_PUBLIC_ORIGIN + '/album/' + album.id
+              const link = window.location.origin + '/album/' + album.id
               navigator.clipboard.writeText(link)
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)

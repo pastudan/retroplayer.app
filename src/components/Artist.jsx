@@ -1,48 +1,11 @@
 import { useState, useEffect } from 'react'
-import { fetchSpotify, msToTime, ALBUM_ART_WIDTH, DEFAULT_ARTIST_URL, NEXT_PUBLIC_ORIGIN } from '@/functions.js'
+import { fetchSpotify, msToTime, ALBUM_ART_WIDTH, DEFAULT_ARTIST_URL } from '@/functions.js'
 import { Heart, Volume2, Clipboard, Radio } from 'lucide-react'
-import PopularityChart from '@/components/PopularityChart.js'
-import ArtistLinks from '@/components/ArtistLinks.js'
-import Album from '@/components/Album.js'
+import PopularityChart from '@/components/PopularityChart.jsx'
+import ArtistLinks from '@/components/ArtistLinks.jsx'
+import Album from '@/components/Album.jsx'
 
-async function fetchDiscography({ id, setSingles }) {
-  await fetch(`/api/artist/${id}/discography`)
-    .then((response) => response.body)
-    .then((rb) => {
-      const reader = rb.getReader()
-      return new ReadableStream({
-        start(controller) {
-          // The following function handles each data chunk
-          function push() {
-            // "done" is a Boolean and value a "Uint8Array"
-            reader.read().then(({ done, value }) => {
-              // If there is no more data to read
-              if (done) {
-                console.log('done', done)
-                controller.close()
-                return
-              }
-              // Get the data and send it to the browser via the controller
-              controller.enqueue(value)
-              // Check chunks by logging to the console
-              console.log(done, value)
-              push()
-            })
-          }
-
-          push()
-        },
-      })
-    })
-    .then((stream) =>
-      // Respond with our stream
-      new Response(stream, { headers: { 'Content-Type': 'text/html' } }).text()
-    )
-    .then((result) => {
-      // Do things with result
-      console.log(result)
-    })
-}
+const DISCOGRAPHY_URL = import.meta.env.VITE_DISCOGRAPHY_URL
 
 export default function Artist({ context, setContext, currentTrack }) {
   const [artist, setArtist] = useState({})
@@ -53,47 +16,38 @@ export default function Artist({ context, setContext, currentTrack }) {
   const [copied, setCopied] = useState(false)
   const [showArtwork, setShowArtwork] = useState(false)
 
+  // Fetch artist metadata, top tracks, full albums, and related artists
   useEffect(() => {
-    const eventSource = new EventSource('http://localhost:3100/discography', { withCredentials: true })
-    eventSource.addEventListener('error', () => {
-      throw new Error('Failed to fetch artist discography')
-    })
-    eventSource.addEventListener('done', () => eventSource.close())
-    eventSource.addEventListener('message', (event) => {
-      const data = JSON.parse(event.data)
-      if (data.albums) setAlbums((albums) => [...albums, ...data.albums])
-      if (data.singles) setSingles((singles) => [...singles, ...data.singles])
-    })
-    // As the component unmounts, close listener to SSE API
-    return () => eventSource.close()
-  }, [])
+    setArtist({})
+    setTopTracks([])
+    setAlbums([])
+    setRelatedArtists([])
 
-  useEffect(() => {
-    // setArtist({})
-    setSingles([])
-    // setAlbums([])
-    // setTopTracks([])
-
-    fetchSpotify(`/artists/${context.id}`).then((data) => {
-      console.log('artist', data)
-      setArtist(data)
-    })
+    fetchSpotify(`/artists/${context.id}`).then((data) => setArtist(data))
     fetchSpotify(`/artists/${context.id}/top-tracks`).then((data) => setTopTracks(data.tracks))
     fetchSpotify(`/artists/${context.id}/albums`).then((data) => {
-      const singleAlbums = data.items.filter((album) => album.album_type === 'single')
-      const fullAlbums = data.items.filter((album) => album.album_type === 'album')
-      console.log('Single Albums', singleAlbums)
-      console.log('Full Albums', fullAlbums)
-      // singleAlbums.forEach(async (album) => {
-      //   const data = await fetchSpotify(`/albums/${album.id}/tracks`)
-      //   const newSingles = data.items.map((track) => ({ ...track, album }))
-      //   setSingles((singles) => [...singles, ...newSingles])
-      // })
       setAlbums(data.items)
     })
     fetchSpotify(`/artists/${context.id}/related-artists`).then((data) => setRelatedArtists(data.artists))
+  }, [context])
 
-    fetchDiscography({ id: context.id, setSingles })
+  // Stream singles via SSE — resets and reconnects whenever artist changes
+  useEffect(() => {
+    setSingles([])
+    if (!DISCOGRAPHY_URL) return
+
+    const url = new URL(`${DISCOGRAPHY_URL}/artist/${context.id}/discography`)
+    url.searchParams.set('token', window.accessToken)
+    const eventSource = new EventSource(url.toString())
+
+    eventSource.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data)
+      if (data.singles) setSingles((prev) => [...prev, ...data.singles])
+    })
+    eventSource.addEventListener('done', () => eventSource.close())
+    eventSource.addEventListener('error', () => eventSource.close())
+
+    return () => eventSource.close()
   }, [context])
 
   return (
@@ -128,7 +82,7 @@ export default function Artist({ context, setContext, currentTrack }) {
                 onClick={() => {
                   setCopied(true)
                   setTimeout(() => setCopied(false), 2000)
-                  const link = NEXT_PUBLIC_ORIGIN + '/artist/' + artist.id
+                  const link = window.location.origin + '/artist/' + artist.id
                   navigator.clipboard.writeText(link)
                 }}
               >
@@ -137,7 +91,6 @@ export default function Artist({ context, setContext, currentTrack }) {
               </a>
             </span>
           </div>
-          {/* <span className="text-xs text-stone-400 mt-1">{artist.followers?.total} followers</span> */}
         </div>
         <div className="ml-4" style={{ width: '30%' }}>
           <h2 className="py-1 text-base font-semibold">Related Artists</h2>
@@ -180,22 +133,17 @@ export default function Artist({ context, setContext, currentTrack }) {
                 className={`hover:bg-main-hover cursor-pointer ${isPlaying ? 'text-green-500' : ''}`}
                 onClick={() => {
                   fetchSpotify(`/me/player/play`, 'PUT', { uris: uris.slice(index) })
-                  console.log(`Playing [track from artist top hits] "${track.name}" — ${track.uri}`, track)
                 }}
               >
                 <td className="px-2 w-14 text-right">
                   {isPlaying && <Volume2 fill="currentColor" strokeWidth={1} />}
-                  <Heart
-                    // fill="currentColor"
-                    strokeWidth={2}
-                  />
+                  <Heart strokeWidth={2} />
                 </td>
                 <td>{track.name}</td>
                 <td>{ArtistLinks({ artists: track.artists, setContext })}</td>
                 <td>{track?.album?.name}</td>
                 <td>{PopularityChart({ popularity: track.popularity })}</td>
                 <td>{msToTime(track.duration_ms)}</td>
-                {/* <pre>{JSON.stringify(track, null, 2)}</pre> */}
               </tr>
             )
           })}
@@ -220,31 +168,25 @@ export default function Artist({ context, setContext, currentTrack }) {
           </tr>
         </thead>
         <tbody>
-          {singles.map((track, index) => {
+          {singles.map((track) => {
             const isPlaying = currentTrack === track.uri
-            const uris = topTracks.map((track) => track.uri)
             return (
               <tr
                 key={track.id}
                 className={`hover:bg-main-hover cursor-pointer ${isPlaying ? 'text-green-500' : ''}`}
                 onClick={() => {
                   fetchSpotify(`/me/player/play`, 'PUT', { uris: [track.uri] })
-                  console.log(`Playing [track from single] "${track.name}" — ${track.uri}`, track)
                 }}
               >
                 <td className="px-2 w-14 text-right">
                   {isPlaying && <Volume2 fill="currentColor" strokeWidth={1} />}
-                  <Heart
-                    // fill="currentColor"
-                    strokeWidth={2}
-                  />
+                  <Heart strokeWidth={2} />
                 </td>
                 <td>{track.name}</td>
                 <td>{ArtistLinks({ artists: track.artists, setContext })}</td>
                 <td>{new Date(track?.album?.release_date).getFullYear()}</td>
                 <td>{PopularityChart({ popularity: track.popularity })}</td>
                 <td>{msToTime(track.duration_ms)}</td>
-                {/* <pre>{JSON.stringify(track, null, 2)}</pre> */}
               </tr>
             )
           })}
